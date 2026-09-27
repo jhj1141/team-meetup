@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>팀 모임 시간표</title>
+<meta name="description" content="팀원 각자 가능한 시간을 칠하면, 겹치는 인원이 많을수록 진하게 보이는 모임 시간표.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='24' rx='4' fill='%230E6B58'/%3E%3Crect x='7' y='12' width='5' height='5' fill='%23fff' opacity='.35'/%3E%3Crect x='13.5' y='12' width='5' height='5' fill='%23fff' opacity='.7'/%3E%3Crect x='20' y='12' width='5' height='5' fill='%23fff'/%3E%3Crect x='7' y='19' width='5' height='5' fill='%23fff' opacity='.7'/%3E%3Crect x='13.5' y='19' width='5' height='5' fill='%23fff'/%3E%3Crect x='20' y='19' width='5' height='5' fill='%23fff' opacity='.35'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#F4F6F2; --surface:#FFFFFF; --surface-2:#ECF0EA; --ink:#18201B; --muted:#5B6760;
+  --line:#CFD6CF; --line-soft:#E4E9E3; --accent:#0E6B58; --accent-ink:#FFFFFF; --accent-soft:#D6ECE4;
+  --heat-lo:#E3F1EA; --heat-hi:#07463A; --gold:#C98E12; --danger:#B3261E; --danger-soft:#F7E1DF;
+  --sel-add:#8FD3BF; --sel-rem:#F0B1AB; --row:15px;
+  --sans:"IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme:dark;
+    --bg:#0F1311; --surface:#161B18; --surface-2:#1D2420; --ink:#E3EAE5; --muted:#92A098;
+    --line:#2F3833; --line-soft:#222925; --accent:#3CC9A6; --accent-ink:#05231C; --accent-soft:#163A30;
+    --heat-lo:#1A2621; --heat-hi:#6BF3CD; --gold:#F2C14E; --danger:#F2877F; --danger-soft:#3A1D1B;
+    --sel-add:#2C7A66; --sel-rem:#7A3531;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); font-size:14px; line-height:1.5;
+  padding-top:env(safe-area-inset-top, 0px); padding-bottom:env(safe-area-inset-bottom, 0px)}
+[hidden]{display:none!important}
+.wrap{max-width:1360px; margin:0 auto; padding-inline:20px; padding-block:22px 48px; display:flex; flex-direction:column; gap:18px}
+button,input,select{font:inherit; color:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed; opacity:.55}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+.num{font-family:var(--mono); font-variant-numeric:tabular-nums}
+
+/* header */
+header{display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:14px 24px}
+.brand h1{margin:0; font-size:26px; font-weight:700; letter-spacing:-0.02em; text-wrap:balance}
+.brand p{margin:4px 0 0; color:var(--muted); max-width:60ch}
+.weeknav{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.iconbtn{width:34px; height:34px; border-radius:8px; border:1px solid var(--line); background:var(--surface); display:grid; place-items:center; font-size:15px}
+.iconbtn:hover{border-color:var(--accent)}
+.weeklabel{font-weight:600; font-size:16px; min-width:13ch; text-align:center}
+.ghost{border:1px solid var(--line); background:transparent; border-radius:8px; padding:6px 10px; font-size:13px}
+.ghost:hover:not(:disabled){border-color:var(--accent); color:var(--accent)}
+.count{display:flex; align-items:baseline; gap:6px; padding:6px 12px; border-radius:999px; background:var(--accent-soft); color:var(--ink); font-size:13px}
+.count b{font-family:var(--mono); font-size:16px}
+
+.banner{border:1px dashed var(--line); border-radius:10px; padding:10px 14px; color:var(--muted); background:var(--surface); display:flex; gap:8px 14px; align-items:center; flex-wrap:wrap}
+.banner .acts{display:flex; gap:6px; flex-wrap:wrap}
+.banner.warn{border-style:solid; border-color:var(--danger); color:var(--danger); background:var(--danger-soft)}
+
+.tabs{display:none; background:var(--surface-2); border-radius:10px; padding:4px; gap:4px}
+.tabs button{flex:1; border:0; background:transparent; padding:8px; border-radius:7px; font-weight:600; color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--surface); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.08)}
+
+/* layout */
+.layout{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 300px; gap:20px; align-items:start}
+.panel{background:var(--surface); border:1px solid var(--line-soft); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:14px; min-width:0}
+.panel h2{margin:0; font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.panel h2 .tag{font-size:11px; font-weight:600; letter-spacing:.06em; color:var(--muted)}
+.side{display:flex; flex-direction:column; gap:20px; position:sticky; top:12px}
+.hint{color:var(--muted); font-size:13px; margin:0}
+
+/* identity */
+.idform{display:flex; gap:8px; flex-wrap:wrap}
+.idform input{flex:1 1 160px; min-width:0; padding:9px 12px; border:1px solid var(--line); border-radius:9px; background:var(--bg)}
+.primary{background:var(--accent); color:var(--accent-ink); border:0; border-radius:9px; padding:9px 16px; font-weight:600}
+.primary:hover:not(:disabled){filter:brightness(1.08)}
+.known{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:8px}
+.chip{border:1px solid var(--line); background:var(--bg); border-radius:999px; padding:3px 10px; font-size:12.5px}
+button.chip:hover{border-color:var(--accent)}
+.me{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap}
+.me .who{font-weight:600}
+.save{font-size:12px; color:var(--muted)}
+.save.err{color:var(--danger)}
+.me .acts{display:flex; gap:6px; flex-wrap:wrap}
+.danger{border-color:var(--danger); color:var(--danger)}
+.ghost.danger:hover:not(:disabled){background:var(--danger-soft); color:var(--danger); border-color:var(--danger)}
+
+/* grids */
+.gridbox{position:relative}
+.grid{display:grid; grid-template-columns:40px repeat(7, minmax(0,1fr)); user-select:none; -webkit-user-select:none; touch-action:manipulation}
+.grid.painting{touch-action:none}
+.dayhead{text-align:center; padding-bottom:6px; line-height:1.2}
+.dayhead .dn{display:block; font-weight:700; font-size:13px}
+.dayhead .dd{display:block; font-family:var(--mono); font-size:11px; color:var(--muted)}
+.dayhead.today .dn{color:var(--accent)}
+.dayhead.wkend .dn{color:var(--muted)}
+.tlabel{font-family:var(--mono); font-size:10.5px; color:var(--muted); text-align:right; padding-right:6px; transform:translateY(-0.6em); line-height:1; pointer-events:none}
+.cell{border-left:1px solid var(--line-soft); border-top:1px solid transparent; min-width:0}
+.cell.h{border-top-color:var(--line)}
+.cell.hh{border-top:1px dashed var(--line-soft)}
+.cell.lastd{border-right:1px solid var(--line-soft)}
+.cell.lastr{border-bottom:1px solid var(--line)}
+
+.mine .cell{background:var(--surface); cursor:cell}
+.mine .cell.on{background:var(--accent)}
+.mine .cell.part{background:repeating-linear-gradient(135deg, var(--accent) 0 3px, var(--accent-soft) 3px 6px)}
+.mine .cell.sel-add{background:var(--sel-add)}
+.mine .cell.sel-rem{background:var(--sel-rem)}
+.mine.locked .cell{cursor:not-allowed}
+.lockmsg{position:absolute; inset:40px 0 0 40px; display:grid; place-items:start center; padding-top:60px; pointer-events:none}
+.lockmsg span{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px 14px; font-weight:600; box-shadow:0 6px 20px rgba(0,0,0,.08)}
+
+.heat .cell{--p:0; background:color-mix(in oklab, var(--heat-hi) calc(var(--p) * 100%), var(--heat-lo)); cursor:pointer; position:relative}
+.heat .cell.z{background:var(--surface)}
+.heat .cell.all::after{content:""; position:absolute; right:3px; top:50%; width:5px; height:5px; margin-top:-2.5px; border-radius:50%; background:var(--gold)}
+.heat .cell.hl{box-shadow:inset 2px 0 0 var(--gold), inset -2px 0 0 var(--gold)}
+.heat .cell.hl.hl-top{box-shadow:inset 2px 0 0 var(--gold), inset -2px 0 0 var(--gold), inset 0 2px 0 var(--gold)}
+.heat .cell.hl.hl-bot{box-shadow:inset 2px 0 0 var(--gold), inset -2px 0 0 var(--gold), inset 0 -2px 0 var(--gold)}
+.heat .cell.hl.hl-top.hl-bot{box-shadow:inset 0 0 0 2px var(--gold)}
+.heat .cell.cur{outline:2px solid var(--ink); outline-offset:-1px; z-index:1}
+
+.legend{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--muted)}
+.ramp{display:flex; gap:2px; align-items:center}
+.ramp i{display:block; width:14px; height:12px; border-radius:2px; background:color-mix(in oklab, var(--heat-hi) calc(var(--p) * 100%), var(--heat-lo))}
+.ramp i.z{background:var(--surface); border:1px solid var(--line)}
+.dot{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--gold); margin-right:4px; vertical-align:middle}
+
+.detail{position:sticky; top:env(safe-area-inset-top, 0px); z-index:3; background:var(--surface-2); border-radius:10px; padding:10px 12px; min-height:88px; max-height:180px; overflow:auto; font-size:13px}
+.detail .when{font-weight:700; display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap}
+.detail .when .num{font-weight:500}
+.detail .row{display:flex; gap:6px; flex-wrap:wrap; align-items:baseline; margin-top:6px}
+.detail .lab{font-size:11.5px; font-weight:600; color:var(--muted); min-width:4.5em}
+.pill{border-radius:999px; padding:1px 9px; font-size:12.5px; background:var(--surface)}
+.pill.yes{background:var(--accent); color:var(--accent-ink)}
+.pill.part{background:var(--accent-soft)}
+.pill.no{color:var(--muted); text-decoration:line-through; text-decoration-color:var(--line)}
+
+/* minute form */
+.minute{display:flex; flex-direction:column; gap:8px; border-top:1px solid var(--line-soft); padding-top:14px}
+.minute .frow{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.minute select,.minute input{padding:7px 9px; border:1px solid var(--line); border-radius:8px; background:var(--bg); min-width:0}
+.minute input[type=time]{font-family:var(--mono)}
+.minute .sep{color:var(--muted)}
+.err{color:var(--danger); font-size:12.5px; margin:0}
+.ranges{display:flex; flex-direction:column; gap:6px}
+.ranges .day{display:flex; gap:8px; align-items:baseline; flex-wrap:wrap}
+.ranges .dl{font-weight:600; font-size:12.5px; min-width:5.2em}
+.rchip{display:inline-flex; align-items:center; gap:4px; border:1px solid var(--accent); color:var(--ink); border-radius:999px; padding:1px 4px 1px 10px; font-family:var(--mono); font-size:12px}
+.rchip button{border:0; background:transparent; color:var(--muted); width:20px; height:20px; border-radius:50%; line-height:1}
+.rchip button:hover{background:var(--danger-soft); color:var(--danger)}
+.paintbtn{display:none}
+@media (pointer:coarse){ .paintbtn{display:inline-block} }
+.paintbtn[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+
+/* sidebar */
+.card{background:var(--surface); border:1px solid var(--line-soft); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:10px}
+.card h3{margin:0; font-size:14px; font-weight:700; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap}
+.card h3 select{font-size:12px; font-weight:500; padding:3px 6px; border:1px solid var(--line); border-radius:7px; background:var(--bg)}
+.best{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px}
+.best button{width:100%; text-align:left; border:1px solid var(--line-soft); background:var(--bg); border-radius:10px; padding:8px 10px; display:grid; grid-template-columns:auto 1fr; gap:2px 10px; align-items:center}
+.best button:hover,.best button[aria-current="true"]{border-color:var(--gold)}
+.best .n{grid-row:span 2; font-family:var(--mono); font-weight:600; font-size:18px; width:2.6em; height:2.6em; border-radius:9px; display:grid; place-items:center; background:color-mix(in oklab, var(--heat-hi) calc(var(--p) * 100%), var(--heat-lo)); color:var(--ink)}
+.best .n.dark{color:var(--accent-ink)}
+.best .t{font-weight:600; font-size:13px}
+.best .m{font-size:12px; color:var(--muted)}
+.plist{list-style:none; margin:0; padding:0; display:flex; flex-direction:column}
+.plist li{display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--line-soft)}
+.plist li:last-child{border-bottom:0}
+.plist label{flex:1; display:flex; align-items:center; gap:8px; min-width:0; cursor:pointer}
+.plist .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.plist .youtag{font-size:10.5px; font-weight:700; color:var(--accent); letter-spacing:.04em}
+.plist .hrs{font-family:var(--mono); font-size:12px; color:var(--muted); white-space:nowrap}
+.plist li.off .nm{color:var(--muted); text-decoration:line-through}
+.plist input{accent-color:var(--accent)}
+.missing{font-size:12.5px; color:var(--muted)}
+details.settings summary{cursor:pointer; font-weight:700; font-size:14px}
+.sgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; margin-top:10px}
+.sgrid label{display:flex; flex-direction:column; gap:3px; font-size:12px; color:var(--muted)}
+.sgrid input,.sgrid select{padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); min-width:0}
+.sgrid .full{grid-column:1/-1}
+.meetid{font-family:var(--mono); font-size:12px; color:var(--muted); word-break:break-all}
+
+@media (max-width:1180px){
+  .layout{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .side{grid-column:1/-1; position:static; display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); align-items:start}
+}
+@media (max-width:760px){
+  .wrap{padding-inline:16px}
+  .tabs{display:flex}
+  .layout{grid-template-columns:minmax(0,1fr)}
+  .side{grid-template-columns:minmax(0,1fr)}
+  .layout[data-tab="mine"] .panel-team, .layout[data-tab="mine"] .side{display:none}
+  .layout[data-tab="team"] .panel-mine{display:none}
+  .brand h1{font-size:22px}
+  :root{--row:17px}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important; scroll-behavior:auto!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>팀 오프라인 모임 시간 맞추기</h1>
+      <p>각자 되는 시간을 칠하면 오른쪽 표에 합쳐져요. 겹치는 사람이 많을수록 진해지고, 모두 되는 칸엔 노란 점이 찍혀요.</p>
+    </div>
+    <div class="weeknav">
+      <button class="iconbtn" id="prevWeek" aria-label="이전 주">‹</button>
+      <div class="weeklabel num" id="weekLabel"></div>
+      <button class="iconbtn" id="nextWeek" aria-label="다음 주">›</button>
+      <button class="ghost" id="thisWeek">이번 주</button>
+      <button class="ghost" id="copyLink">링크 복사</button>
+      <div class="count"><span>응답</span><b id="countNum">0</b><span id="countOf">/ 10명</span></div>
+    </div>
+  </header>
+
+  <div class="banner" id="banner">불러오는 중…</div>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tabMine" aria-selected="true">내 시간 입력</button>
+    <button role="tab" id="tabTeam" aria-selected="false">팀 전체 보기</button>
+  </div>
+
+  <div class="layout" id="layout" data-tab="mine">
+    <section class="panel panel-mine">
+      <h2>내 가능 시간 <span class="tag">드래그해서 칠하기</span></h2>
+      <div id="idBox"></div>
+      <div class="gridbox">
+        <div class="grid mine" id="mineGrid"></div>
+        <div class="lockmsg" id="lockMsg" hidden><span>위에 이름을 먼저 입력하세요</span></div>
+      </div>
+      <p class="hint">빈 칸에서 드래그하면 추가, 칠해진 칸에서 드래그하면 지워져요. 빗금 칸은 그 칸의 일부 시간만 되는 경우예요.
+        <button class="ghost paintbtn" id="paintToggle" aria-pressed="false">드래그로 칠하기</button></p>
+
+      <div class="minute">
+        <h2>분 단위로 직접 입력</h2>
+        <div class="frow">
+          <select id="fDate" aria-label="날짜"></select>
+          <input type="time" id="fStart" step="60" value="18:00" aria-label="시작 시각">
+          <span class="sep">–</span>
+          <input type="time" id="fEnd" step="60" value="20:30" aria-label="끝 시각">
+        </div>
+        <div class="frow">
+          <button class="primary" id="fAdd">가능 시간 추가</button>
+          <button class="ghost danger" id="fSub">이 시간 빼기</button>
+        </div>
+        <p class="err" id="fErr" hidden></p>
+        <div class="ranges" id="myRanges"></div>
+      </div>
+    </section>
+
+    <section class="panel panel-team">
+      <h2>모두의 가능 시간 <span class="tag">진할수록 많이 겹침</span></h2>
+      <div class="legend" id="legend"></div>
+      <div class="detail" id="detail"></div>
+      <div class="gridbox"><div class="grid heat" id="heatGrid"></div></div>
+    </section>
+
+    <aside class="side">
+      <div class="card">
+        <h3>가장 많이 겹치는 시간
+          <select id="minLen" aria-label="최소 모임 길이">
+            <option value="30">30분 이상</option>
+            <option value="60" selected>1시간 이상</option>
+            <option value="90">1시간 30분 이상</option>
+            <option value="120">2시간 이상</option>
+            <option value="180">3시간 이상</option>
+          </select>
+        </h3>
+        <ol class="best" id="best"></ol>
+      </div>
+      <div class="card">
+        <h3>응답한 사람</h3>
+        <p class="hint">체크를 풀면 그 사람은 빼고 계산해요. 이 설정은 내 화면에만 적용돼요.</p>
+        <ul class="plist" id="people"></ul>
+        <div class="missing" id="missing"></div>
+      </div>
+      <div class="card">
+        <details class="settings" id="settings">
+          <summary>표 설정 (모두에게 적용)</summary>
+          <div class="sgrid">
+            <label>팀 인원<input type="number" id="cTeam" min="1" max="50"></label>
+            <label>칸 단위<select id="cSlot"><option value="10">10분</option><option value="15">15분</option><option value="20">20분</option><option value="30">30분</option><option value="60">60분</option></select></label>
+            <label>표 시작 시각<select id="cStart"></select></label>
+            <label>표 끝 시각<select id="cEnd"></select></label>
+            <button class="primary full" id="cApply">설정 저장</button>
+            <p class="hint full" id="cMsg"></p>
+          </div>
+        </details>
+        <p class="hint">다른 모임을 따로 잡으려면 <button class="ghost" id="newMeet">새 일정 만들기</button></p>
+        <p class="meetid">일정 코드: <span id="meetId"></span></p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script type="module">
+const FIREBASE_VERSION='10.14.1';
+const DAYS=['월','화','수','목','금','토','일'];
+const DEF={teamSize:10,startHour:9,endHour:22,slot:15};
+const $=id=>document.getElementById(id);
+function ls(k,v){try{ if(v===undefined) return localStorage.getItem(k); if(v===null) localStorage.removeItem(k); else localStorage.setItem(k,v);}catch(e){ return null; }}
+const pad=n=>String(n).padStart(2,'0');
+const keyOf=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const parseKey=k=>{const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d)};
+const addDays=(d,n)=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()+n);return x};
+const mondayOf=d=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());return addDays(x,-((x.getDay()+6)%7))};
+const hm=m=>Math.floor(m/60)+':'+pad(m%60);
+const dur=m=>{const h=Math.floor(m/60),mm=m%60;return ((h?h+'시간':'')+(h&&mm?' ':'')+(mm?mm+'분':''))||'0분'};
+const dayIdx=d=>(d.getDay()+6)%7;
+const dateLabel=k=>{const d=parseKey(k);return (d.getMonth()+1)+'/'+d.getDate()+' ('+DAYS[dayIdx(d)]+')'};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const toMin=v=>{const m=/^(\d{1,2}):(\d{2})/.exec(v||'');return m?(+m[1])*60+(+m[2]):null};
+
+/* ---------- meeting id (lets one site host several separate schedules) ---------- */
+const MEET=(()=>{const m=new URLSearchParams(location.search).get('m');return m&&/^[A-Za-z0-9_-]{1,40}$/.test(m)?m:'main'})();
+const LS=k=>'meetup:'+MEET+':'+k;
+
+/* ---------- interval math: lists of [start,end) minutes within one day ---------- */
+function norm(list){const s=list.filter(x=>x[1]>x[0]).map(x=>[x[0],x[1]]).sort((a,b)=>a[0]-b[0]);const out=[];for(const x of s){const l=out[out.length-1];if(l&&x[0]<=l[1])l[1]=Math.max(l[1],x[1]);else out.push(x)}return out}
+const addR=(list,a,b)=>norm([...(list||[]),[a,b]]);
+function subR(list,a,b){const out=[];for(const [s,e] of list||[]){if(e<=a||s>=b){out.push([s,e]);continue}if(s<a)out.push([s,a]);if(e>b)out.push([b,e])}return out}
+function cover(list,a,b){let c=0;for(const [s,e] of list||[])c+=Math.max(0,Math.min(e,b)-Math.max(s,a));return c}
+function clip(list,a,b){return (list||[]).filter(([s,e])=>e>a&&s<b).map(([s,e])=>[Math.max(s,a),Math.min(e,b)])}
+const clone=av=>{const o={};for(const k in av)o[k]=av[k].map(x=>[x[0],x[1]]);return o};
+
+function idFor(name){const s=name.normalize('NFC').trim().toLowerCase().replace(/\s+/g,' ');let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0}return 'p'+h.toString(16).padStart(8,'0')}
+function decode(id,data){
+  if(!data||typeof data.name!=='string')return null;
+  const name=data.name.trim().slice(0,30); if(!name)return null;
+  const avail={}; const a=data.avail;
+  if(a&&typeof a==='object'&&!Array.isArray(a)) for(const k of Object.keys(a)){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(k)||!Array.isArray(a[k]))continue;
+    const cl=v=>Math.max(0,Math.min(1440,Math.round(v)));
+    const list=norm(a[k].filter(x=>x&&typeof x.s==='number'&&typeof x.e==='number').map(x=>[cl(x.s),cl(x.e)]));
+    if(list.length)avail[k]=list;
+  }
+  return {id,name,avail,updatedAt:typeof data.updatedAt==='number'?data.updatedAt:0};
+}
+function encode(av){const o={};for(const k in av){if(av[k]&&av[k].length)o[k]=av[k].map(([s,e])=>({s,e}))}return o}
+function decodeConfig(d){
+  if(!d)return {...DEF};
+  const n=(v,lo,hi,def)=>typeof v==='number'&&v>=lo&&v<=hi?Math.round(v):def;
+  const c={teamSize:n(d.teamSize,1,50,DEF.teamSize),startHour:n(d.startHour,0,23,DEF.startHour),endHour:n(d.endHour,1,24,DEF.endHour),slot:[10,15,20,30,60].includes(d.slot)?d.slot:DEF.slot};
+  if(c.endHour<=c.startHour){c.startHour=DEF.startHour;c.endHour=DEF.endHour}
+  return c;
+}
+
+/* ---------- storage backends: same interface, Firebase for real use, localStorage for preview ---------- */
+async function firebaseStore(cfg){
+  const base='https://www.gstatic.com/firebasejs/'+FIREBASE_VERSION+'/';
+  const {initializeApp}=await import(base+'firebase-app.js');
+  const fs=await import(base+'firebase-firestore.js');
+  const db=fs.getFirestore(initializeApp(cfg));
+  const meet=fs.doc(db,'meetings',MEET),people=fs.collection(db,'meetings',MEET,'people');
+  return {
+    kind:'firebase',
+    onPeople:(cb,err)=>fs.onSnapshot(people,s=>cb(s.docs.map(d=>({id:d.id,data:d.data()}))),err),
+    onConfig:(cb,err)=>fs.onSnapshot(meet,s=>cb(s.exists()?s.data():null),err),
+    savePerson:(id,data)=>fs.setDoc(fs.doc(people,id),data),
+    deletePerson:id=>fs.deleteDoc(fs.doc(people,id)),
+    saveConfig:data=>fs.setDoc(meet,data),
+  };
+}
+function localStore(){
+  const mem={};
+  const read=k=>{const v=ls(LS(k));if(v!==null){try{return JSON.parse(v)}catch(e){}}return mem[k]===undefined?null:mem[k]};
+  const write=(k,v)=>{mem[k]=v;ls(LS(k),v===null?null:JSON.stringify(v))};
+  const pl=new Set(),cl=new Set();
+  const emitP=()=>{const all=read('people')||{};const arr=Object.keys(all).map(id=>({id,data:all[id]}));pl.forEach(f=>f(arr))};
+  const emitC=()=>{const c=read('config');cl.forEach(f=>f(c))};
+  addEventListener('storage',e=>{if(e.key===LS('people'))emitP();if(e.key===LS('config'))emitC()});
+  return {
+    kind:'local',
+    onPeople:cb=>{pl.add(cb);setTimeout(emitP,0);return()=>pl.delete(cb)},
+    onConfig:cb=>{cl.add(cb);setTimeout(emitC,0);return()=>cl.delete(cb)},
+    savePerson:async(id,data)=>{const all=read('people')||{};all[id]=JSON.parse(JSON.stringify(data));write('people',all);emitP()},
+    deletePerson:async id=>{const all=read('people')||{};delete all[id];write('people',all);emitP()},
+    saveConfig:async data=>{write('config',data);emitC()},
+    seed:async week=>{
+      const names=['예시 민준','예시 서연','예시 도윤','예시 하은','예시 지호','예시 수아'];
+      const pats=[
+        [[0,[[1080,1320]]],[2,[[840,1080]]],[4,[[1140,1320]]],[5,[[600,1260]]]],
+        [[0,[[1110,1290]]],[1,[[1140,1320]]],[4,[[1080,1320]]],[5,[[780,1080]]]],
+        [[2,[[900,1200]]],[4,[[1170,1320]]],[5,[[660,960]]],[6,[[780,1020]]]],
+        [[0,[[1140,1320]]],[4,[[1125,1290]]],[5,[[720,1020]]]],
+        [[1,[[1080,1230]]],[4,[[1080,1260]]],[5,[[600,900]]],[6,[[840,1080]]]],
+        [[3,[[1080,1320]]],[4,[[1140,1320]]],[5,[[810,1140]]]],
+      ];
+      const all=read('people')||{};
+      names.forEach((n,i)=>{const av={};pats[i].forEach(([d,l])=>{av[keyOf(addDays(week,d))]=l});all['demo'+i]={name:n,avail:encode(av),updatedAt:Date.now()}});
+      write('people',all);emitP();
+    },
+    clear:async()=>{write('people',null);write('config',null);emitP();emitC()},
+  };
+}
+
+/* ---------- state ---------- */
+let excluded=new Set(); try{excluded=new Set(JSON.parse(ls(LS('excluded'))||'[]'))}catch(e){}
+const S={store:null,mode:'loading',people:new Map(),config:{...DEF},meId:ls(LS('meId')),me:null,
+  localVer:0,savedVer:0,saving:false,again:false,retried:false,saveTimer:null,blocked:false,loadError:'',
+  week:mondayOf(addDays(new Date(),1)),hover:null,pinned:null,hl:null,minLen:60,paint:false,
+  mineCells:null,heatCells:null,builtFor:''};
+let saveLabel='';
+
+function allPeople(){
+  const m=new Map(S.people);
+  if(S.me&&S.meId&&(m.has(S.meId)||S.me.touched)) m.set(S.meId,{id:S.meId,name:S.me.name,avail:S.me.avail,updatedAt:Date.now()});
+  return [...m.values()].sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+}
+const included=()=>allPeople().filter(p=>!excluded.has(p.id));
+
+/* ---------- grid build ---------- */
+const rowsCount=()=>Math.max(1,Math.round((S.config.endHour-S.config.startHour)*60/S.config.slot));
+function build(el){
+  const R=rowsCount(),slot=S.config.slot,base=S.config.startHour*60,todayK=keyOf(new Date());
+  el.innerHTML=''; el.style.gridTemplateRows='auto repeat('+R+', var(--row))';
+  const f=document.createDocumentFragment();
+  const corner=document.createElement('div');corner.style.gridColumn=1;corner.style.gridRow=1;f.append(corner);
+  for(let d=0;d<7;d++){
+    const date=addDays(S.week,d),h=document.createElement('div');
+    h.className='dayhead'+(keyOf(date)===todayK?' today':'')+(d>=5?' wkend':'');
+    h.innerHTML='<span class="dn">'+DAYS[d]+'</span><span class="dd">'+(date.getMonth()+1)+'/'+date.getDate()+'</span>';
+    h.style.gridColumn=d+2;h.style.gridRow=1;f.append(h);
+  }
+  for(let r=0;r<R;r++){const m=base+r*slot;if(m%60===0){const t=document.createElement('div');t.className='tlabel';t.textContent=hm(m);t.style.gridColumn=1;t.style.gridRow=r+2;f.append(t)}}
+  const cells=[];
+  for(let d=0;d<7;d++){cells[d]=[];for(let r=0;r<R;r++){
+    const c=document.createElement('div'),m=base+r*slot;
+    c.className='cell'+(m%60===0?' h':(m%30===0?' hh':''))+(d===6?' lastd':'')+(r===R-1?' lastr':'');
+    c.dataset.d=d;c.dataset.r=r;c.style.gridColumn=d+2;c.style.gridRow=r+2;
+    cells[d][r]=c;f.append(c);
+  }}
+  el.append(f);return cells;
+}
+function rebuildIfNeeded(){
+  const sig=keyOf(S.week)+'|'+S.config.startHour+'|'+S.config.endHour+'|'+S.config.slot;
+  if(sig===S.builtFor)return;
+  S.builtFor=sig;S.hover=null;S.pinned=null;
+  S.mineCells=build($('mineGrid'));S.heatCells=build($('heatGrid'));
+}
+
+/* ---------- rendering ---------- */
+function weekKeys(){const a=[];for(let d=0;d<7;d++)a.push(keyOf(addDays(S.week,d)));return a}
+function renderHeader(){
+  const a=S.week,b=addDays(S.week,6);
+  $('weekLabel').textContent=(a.getMonth()+1)+'월 '+a.getDate()+'일 – '+(b.getMonth()!==a.getMonth()?(b.getMonth()+1)+'월 ':'')+b.getDate()+'일';
+  $('countNum').textContent=allPeople().length;$('countOf').textContent='/ '+S.config.teamSize+'명';
+  $('meetId').textContent=MEET;
+  const bn=$('banner');
+  if(S.loadError){bn.hidden=false;bn.className='banner warn';bn.textContent=S.loadError;return}
+  if(S.blocked){bn.hidden=false;bn.className='banner warn';bn.textContent='저장이 거부됐어요. Firebase 콘솔에서 Firestore 보안 규칙(firestore.rules)을 게시했는지 확인하세요.';return}
+  if(S.mode==='loading'){bn.hidden=false;bn.className='banner';bn.textContent='불러오는 중…';return}
+  if(S.mode==='local'){
+    if(bn.dataset.mode==='local'&&!bn.hidden)return;
+    bn.dataset.mode='local';bn.hidden=false;bn.className='banner';
+    bn.innerHTML='<span>로컬 미리보기 모드예요. Firebase 설정(config.js)을 넣기 전이라 이 브라우저에만 저장되고 팀원에게는 보이지 않아요.</span><span class="acts"><button class="ghost" id="seedBtn">예시 팀원 6명 넣기</button><button class="ghost danger" id="clearBtn">미리보기 데이터 비우기</button></span>';
+    $('seedBtn').addEventListener('click',()=>S.store.seed(S.week));
+    let armed=false;const cb=$('clearBtn');
+    cb.addEventListener('click',()=>{if(!armed){armed=true;cb.textContent='한 번 더 누르면 비워요';setTimeout(()=>{armed=false;if(cb.isConnected)cb.textContent='미리보기 데이터 비우기'},4000);return}
+      armed=false;S.store.clear();leave();});
+    return;
+  }
+  bn.dataset.mode='';bn.hidden=true;
+}
+function renderIdentity(){
+  const box=$('idBox');
+  if(!S.me){
+    if(!$('idForm')){
+      box.dataset.who='';
+      box.innerHTML='<form class="idform" id="idForm"><input id="nameInput" maxlength="30" placeholder="이름 (예: 김민지)" autocomplete="off" aria-label="내 이름"><button class="primary" type="submit">시작</button></form><div class="known" id="known"></div>';
+      $('idForm').addEventListener('submit',e=>{e.preventDefault();join($('nameInput').value)});
+    }
+    const known=[...S.people.values()].sort((a,b)=>a.name.localeCompare(b.name,'ko')),kb=$('known');
+    kb.hidden=!known.length;
+    kb.innerHTML=known.length?'<span class="hint">이미 응답했다면 이름을 눌러 이어서 수정:</span>'+known.map(p=>'<button type="button" class="chip" data-id="'+esc(p.id)+'">'+esc(p.name)+'</button>').join(''):'';
+    kb.querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>{const p=S.people.get(b.dataset.id);if(p)join(p.name)}));
+    return;
+  }
+  if(box.dataset.who===S.meId&&$('leaveBtn')){paintSave();return}
+  box.dataset.who=S.meId;
+  box.innerHTML='<div class="me"><div><span class="who">'+esc(S.me.name)+'</span> 님의 시간 <span class="save" id="saveState"></span></div>'+
+    '<div class="acts"><button class="ghost" id="leaveBtn">다른 이름으로</button><button class="ghost danger" id="delBtn">내 응답 삭제</button></div></div>';
+  $('leaveBtn').addEventListener('click',leave);
+  const del=$('delBtn');let armed=false;
+  del.addEventListener('click',()=>{ if(!armed){armed=true;del.textContent='한 번 더 누르면 삭제돼요';setTimeout(()=>{if(armed){armed=false;if(del.isConnected)del.textContent='내 응답 삭제'}},4000);return} armed=false;deleteMine(); });
+  paintSave();
+}
+function setSave(st){saveLabel=st;paintSave()}
+function paintSave(){
+  const el=$('saveState');if(!el)return;
+  el.className='save';
+  const t=new Date();
+  el.textContent={pending:'· 저장 대기',saving:'· 저장 중…',saved:'· 저장됨 '+pad(t.getHours())+':'+pad(t.getMinutes()),error:'· 저장 실패. 인터넷 연결을 확인하고 다시 칠해 보세요',blocked:'· 저장 거부됨'}[saveLabel]||'';
+  if(saveLabel==='error'||saveLabel==='blocked')el.classList.add('err');
+}
+function paintMine(){
+  if(!S.mineCells)return;
+  const slot=S.config.slot,base=S.config.startHour*60,keys=weekKeys(),R=rowsCount();
+  for(let d=0;d<7;d++){const list=S.me?S.me.avail[keys[d]]:null;for(let r=0;r<R;r++){
+    const a=base+r*slot,c=cover(list,a,a+slot),el=S.mineCells[d][r];
+    el.classList.toggle('on',c>=slot);el.classList.toggle('part',c>0&&c<slot);
+  }}
+  $('mineGrid').classList.toggle('locked',!S.me);
+  $('lockMsg').hidden=!!S.me;
+}
+function heatP(sum,n){return sum>0?(0.14+0.86*Math.min(1,sum/n)):0}
+function paintHeat(){
+  if(!S.heatCells)return;
+  const inc=included(),normN=Math.max(S.config.teamSize,inc.length)||1;
+  const slot=S.config.slot,base=S.config.startHour*60,keys=weekKeys(),R=rowsCount();
+  for(let d=0;d<7;d++){const k=keys[d];for(let r=0;r<R;r++){
+    const a=base+r*slot;let sum=0,full=0;
+    for(const p of inc){const c=cover(p.avail[k],a,a+slot)/slot;sum+=c;if(c>=1)full++}
+    const el=S.heatCells[d][r];
+    el.style.setProperty('--p',heatP(sum,normN).toFixed(3));
+    el.classList.toggle('z',sum===0);
+    el.classList.toggle('all',inc.length>=2&&full===inc.length);
+    const inHl=!!(S.hl&&S.hl.k===k&&a<S.hl.b&&a+slot>S.hl.a);
+    el.classList.toggle('hl',inHl);
+    el.classList.toggle('hl-top',inHl&&a<=S.hl.a);
+    el.classList.toggle('hl-bot',inHl&&a+slot>=S.hl.b);
+  }}
+  markCur();
+}
+function markCur(){
+  if(!S.heatCells)return;
+  document.querySelectorAll('#heatGrid .cell.cur').forEach(c=>c.classList.remove('cur'));
+  const t=S.pinned||S.hover;if(t&&S.heatCells[t.d]&&S.heatCells[t.d][t.r])S.heatCells[t.d][t.r].classList.add('cur');
+}
+function renderLegend(){
+  const n=S.config.teamSize,steps=Math.min(n,10);let h='<span>0명</span><span class="ramp"><i class="z"></i>';
+  for(let i=1;i<=steps;i++){const v=Math.round(i*n/steps);h+='<i style="--p:'+heatP(v,n).toFixed(3)+'" title="'+v+'명"></i>'}
+  h+='</span><span>'+n+'명</span><span><span class="dot"></span>응답자 전원 가능</span>';
+  $('legend').innerHTML=h;
+}
+function renderDetail(){
+  const box=$('detail'),t=S.pinned||S.hover;
+  if(!t){box.innerHTML='<p class="hint">표의 칸에 마우스를 올리거나 눌러 보면 그 시간에 누가 되는지 보여요. 추천 시간을 누르면 표에 노란 테두리로 표시돼요.</p>';return}
+  const slot=S.config.slot,a=S.config.startHour*60+t.r*slot,b=a+slot,k=keyOf(addDays(S.week,t.d));
+  const inc=included(),yes=[],part=[],no=[];
+  for(const p of inc){const c=cover(p.avail[k],a,b);if(c>=slot)yes.push(p);else if(c>0)part.push(p);else no.push(p)}
+  const missing=Math.max(0,S.config.teamSize-allPeople().length);
+  let h='<div class="when"><span>'+dateLabel(k)+' <span class="num">'+hm(a)+'–'+hm(b)+'</span></span><span class="num">'+yes.length+' / '+inc.length+'명 가능'+(S.pinned?' · 고정됨':'')+'</span></div>';
+  if(yes.length)h+='<div class="row"><span class="lab">가능</span>'+yes.map(p=>'<span class="pill yes">'+esc(p.name)+'</span>').join('')+'</div>';
+  if(part.length)h+='<div class="row"><span class="lab">일부만</span>'+part.map(p=>'<span class="pill part">'+esc(p.name)+' <span class="num">'+clip(p.avail[k],a,b).map(([s,e])=>hm(s)+'–'+hm(e)).join(', ')+'</span></span>').join('')+'</div>';
+  if(no.length)h+='<div class="row"><span class="lab">안 됨</span>'+no.map(p=>'<span class="pill no">'+esc(p.name)+'</span>').join('')+'</div>';
+  if(missing)h+='<div class="row"><span class="lab">미응답</span><span class="hint">'+missing+'명</span></div>';
+  box.innerHTML=h;
+}
+function bestTimes(){
+  const inc=included();if(!inc.length)return [];
+  const todayK=keyOf(new Date()),dates=new Set(),cands=[],minLen=S.minLen;
+  inc.forEach(p=>Object.keys(p.avail).forEach(k=>{if(k>=todayK&&p.avail[k].length)dates.add(k)}));
+  for(const k of dates){
+    const pts=new Set();inc.forEach(p=>(p.avail[k]||[]).forEach(([s,e])=>{pts.add(s);pts.add(e)}));
+    const xs=[...pts].sort((x,y)=>x-y),segs=[];
+    for(let i=0;i<xs.length-1;i++){const a=xs[i],b=xs[i+1];const set=inc.filter(p=>(p.avail[k]||[]).some(([s,e])=>s<=a&&e>=b)).map(p=>p.id);if(set.length)segs.push({a,b,set})}
+    const push=(ids,a,b)=>{if(b-a>=minLen)cands.push({k,a,b,ids:[...ids]})};
+    // from each segment, extend forward while the same people stay; record a window each time someone drops out
+    for(let i=0;i<segs.length;i++){
+      let cur=new Set(segs[i].set),end=segs[i].b;
+      for(let j=i+1;j<segs.length;j++){
+        if(segs[j].a!==segs[j-1].b)break;
+        const nx=new Set(segs[j].set.filter(x=>cur.has(x)));
+        if(!nx.size)break;
+        if(nx.size<cur.size){push(cur,segs[i].a,end);cur=nx}
+        end=segs[j].b;
+      }
+      push(cur,segs[i].a,end);
+    }
+  }
+  const sub=(x,y)=>x.every(i=>y.includes(i));
+  const kept=cands.filter((c,ci)=>!cands.some((d,di)=>di!==ci&&d.k===c.k&&d.a<=c.a&&d.b>=c.b&&sub(c.ids,d.ids)&&(d.ids.length>c.ids.length||d.b-d.a>c.b-c.a||di<ci)));
+  kept.sort((x,y)=>y.ids.length-x.ids.length||(y.b-y.a)-(x.b-x.a)||(x.k<y.k?-1:x.k>y.k?1:x.a-y.a));
+  return kept.slice(0,6);
+}
+function renderBest(){
+  const list=bestTimes(),el=$('best'),inc=included(),normN=Math.max(S.config.teamSize,inc.length)||1;
+  if(!list.length){el.innerHTML='<li class="hint">'+(inc.length?'조건에 맞는 겹치는 시간이 아직 없어요. 최소 길이를 줄여 보세요.':'아직 응답이 없어요. 먼저 내 시간을 칠해 보세요.')+'</li>';return}
+  el.innerHTML=list.map((c,i)=>{
+    const p=heatP(c.ids.length,normN),out=inc.filter(x=>!c.ids.includes(x.id)).map(x=>x.name);
+    const cur=S.hl&&S.hl.k===c.k&&S.hl.a===c.a&&S.hl.b===c.b;
+    return '<li><button data-i="'+i+'"'+(cur?' aria-current="true"':'')+'><span class="n'+(p>0.6?' dark':'')+'" style="--p:'+p.toFixed(3)+'">'+c.ids.length+'</span>'+
+      '<span class="t">'+dateLabel(c.k)+' <span class="num">'+hm(c.a)+'–'+hm(c.b)+'</span></span>'+
+      '<span class="m">'+dur(c.b-c.a)+' · '+(out.length?'빠지는 사람: '+esc(out.join(', ')):'응답자 전원 가능')+'</span></button></li>';
+  }).join('');
+  el.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+    const c=list[+b.dataset.i];S.hl={k:c.k,a:c.a,b:c.b};S.week=mondayOf(parseKey(c.k));
+    const d=dayIdx(parseKey(c.k)),r=Math.max(0,Math.floor((c.a-S.config.startHour*60)/S.config.slot));
+    renderAll();
+    if(r<rowsCount()){S.pinned={d,r};renderDetail();markCur()}
+    setTab('team');
+    const target=S.heatCells&&S.heatCells[d]&&S.heatCells[d][Math.min(r,rowsCount()-1)];
+    if(target)target.scrollIntoView({block:'center',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+  }));
+}
+function renderPeople(){
+  const ps=allPeople(),keys=weekKeys(),el=$('people');
+  if(!ps.length){el.innerHTML='<li class="hint">아직 아무도 응답하지 않았어요.</li>'}
+  else el.innerHTML=ps.map(p=>{
+    const mins=keys.reduce((s,k)=>s+cover(p.avail[k],0,1440),0),off=excluded.has(p.id);
+    return '<li class="'+(off?'off':'')+'"><label><input type="checkbox" id="inc-'+esc(p.id)+'" data-id="'+esc(p.id)+'"'+(off?'':' checked')+'><span class="nm">'+esc(p.name)+'</span>'+(p.id===S.meId?'<span class="youtag">나</span>':'')+'</label><span class="hrs">'+(mins?'이번 주 '+dur(mins):'이번 주 없음')+'</span></li>';
+  }).join('');
+  el.querySelectorAll('input').forEach(i=>i.addEventListener('change',()=>{
+    if(i.checked)excluded.delete(i.dataset.id);else excluded.add(i.dataset.id);
+    ls(LS('excluded'),JSON.stringify([...excluded]));renderAll();
+  }));
+  const miss=Math.max(0,S.config.teamSize-ps.length);
+  $('missing').textContent=miss?'아직 '+miss+'명이 응답하지 않았어요.':'팀 전원이 응답했어요.';
+}
+function renderMinuteForm(){
+  const sel=$('fDate'),keys=weekKeys(),prev=sel.value;
+  sel.innerHTML=keys.map(k=>'<option value="'+k+'">'+dateLabel(k)+'</option>').join('');
+  if(keys.includes(prev))sel.value=prev;
+  ['fDate','fStart','fEnd','fAdd','fSub'].forEach(id=>$(id).disabled=!S.me);
+  const box=$('myRanges');
+  if(!S.me){box.innerHTML='';return}
+  const rows=keys.filter(k=>(S.me.avail[k]||[]).length).map(k=>'<div class="day"><span class="dl">'+dateLabel(k)+'</span>'+
+    S.me.avail[k].map(([s,e],i)=>'<span class="rchip">'+hm(s)+'–'+hm(e)+'<button aria-label="'+dateLabel(k)+' '+hm(s)+'–'+hm(e)+' 삭제" data-k="'+k+'" data-i="'+i+'">×</button></span>').join('')+'</div>');
+  box.innerHTML=rows.length?rows.join(''):'<p class="hint">이번 주에 입력한 시간이 아직 없어요.</p>';
+  box.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+    const k=b.dataset.k,i=+b.dataset.i,[s,e]=S.me.avail[k][i];
+    S.me.avail[k]=subR(S.me.avail[k],s,e);if(!S.me.avail[k].length)delete S.me.avail[k];edited();
+  }));
+}
+function renderSettings(){
+  if(document.activeElement&&$('settings').contains(document.activeElement))return;
+  const c=S.config,hs=[];for(let h=0;h<=24;h++)hs.push(h);
+  $('cTeam').value=c.teamSize;$('cSlot').value=String(c.slot);
+  $('cStart').innerHTML=hs.slice(0,24).map(h=>'<option value="'+h+'">'+h+':00</option>').join('');
+  $('cEnd').innerHTML=hs.slice(1).map(h=>'<option value="'+h+'">'+h+':00</option>').join('');
+  $('cStart').value=String(c.startHour);$('cEnd').value=String(c.endHour);
+}
+function renderAll(){
+  rebuildIfNeeded();renderHeader();renderIdentity();paintMine();paintHeat();renderLegend();
+  renderDetail();renderBest();renderPeople();renderMinuteForm();
+}
+
+/* ---------- editing & saving ---------- */
+function edited(){
+  S.me.touched=true;S.localVer++;
+  paintMine();paintHeat();renderDetail();renderBest();renderPeople();renderMinuteForm();renderHeader();
+  if(!S.store)return;
+  setSave('pending');clearTimeout(S.saveTimer);S.saveTimer=setTimeout(save,700);
+}
+async function save(){
+  if(S.saving){S.again=true;return}
+  if(!S.me||!S.meId)return;
+  S.saving=true;const v=S.localVer;setSave('saving');
+  try{
+    await S.store.savePerson(S.meId,{name:S.me.name,avail:encode(S.me.avail),updatedAt:Date.now()});
+    S.savedVer=v;S.retried=false;S.blocked=false;setSave(S.localVer===v?'saved':'pending');
+  }catch(e){
+    const code=e&&e.code;
+    if(code==='permission-denied'){S.blocked=true;setSave('blocked');renderHeader()}
+    else if(!S.retried){S.retried=true;setTimeout(save,800+Math.random()*900)}
+    else setSave('error');
+  }finally{
+    S.saving=false;if(S.again){S.again=false;save()}
+  }
+}
+function join(name){
+  name=(name||'').trim().slice(0,30);if(!name){const i=$('nameInput');if(i)i.focus();return}
+  const id=idFor(name);S.meId=id;ls(LS('meId'),id);ls(LS('meName'),name);
+  const ex=S.people.get(id);
+  S.me={name:ex?ex.name:name,avail:ex?clone(ex.avail):{},touched:false};
+  S.localVer=S.savedVer=0;saveLabel=ex?'saved':'';renderAll();
+}
+function leave(){S.me=null;S.meId=null;ls(LS('meId'),null);ls(LS('meName'),null);clearTimeout(S.saveTimer);renderAll()}
+async function deleteMine(){
+  clearTimeout(S.saveTimer);
+  if(S.store){try{await S.store.deletePerson(S.meId)}catch(e){setSave(e&&e.code==='permission-denied'?'blocked':'error');return}}
+  S.people.delete(S.meId);S.me.avail={};S.me.touched=false;S.localVer=S.savedVer=0;saveLabel='';renderAll();
+}
+
+/* drag painting on my grid */
+let drag=null;
+const mineGrid=$('mineGrid');
+function cellCover(d,r){const k=keyOf(addDays(S.week,d)),a=S.config.startHour*60+r*S.config.slot;return cover(S.me.avail[k],a,a+S.config.slot)}
+function clearSel(){document.querySelectorAll('#mineGrid .sel-add,#mineGrid .sel-rem').forEach(c=>c.classList.remove('sel-add','sel-rem'))}
+function rect(){return [Math.min(drag.d0,drag.d1),Math.max(drag.d0,drag.d1),Math.min(drag.r0,drag.r1),Math.max(drag.r0,drag.r1)]}
+function previewSel(){
+  clearSel();if(!drag)return;
+  const [d0,d1,r0,r1]=rect();
+  for(let d=d0;d<=d1;d++)for(let r=r0;r<=r1;r++)S.mineCells[d][r].classList.add(drag.mode==='add'?'sel-add':'sel-rem');
+}
+function applyDrag(){
+  const [d0,d1,r0,r1]=rect(),base=S.config.startHour*60,slot=S.config.slot,a=base+r0*slot,b=base+(r1+1)*slot;
+  for(let d=d0;d<=d1;d++){const k=keyOf(addDays(S.week,d));S.me.avail[k]=drag.mode==='add'?addR(S.me.avail[k],a,b):subR(S.me.avail[k],a,b);if(!S.me.avail[k].length)delete S.me.avail[k]}
+  drag=null;clearSel();edited();
+}
+mineGrid.addEventListener('pointerdown',e=>{
+  const c=e.target.closest('.cell');if(!c)return;
+  if(!S.me){const i=$('nameInput');if(i)i.focus();return}
+  const d=+c.dataset.d,r=+c.dataset.r,tap=e.pointerType==='touch'&&!S.paint;
+  drag={d0:d,r0:r,d1:d,r1:r,mode:cellCover(d,r)>=S.config.slot?'rem':'add',tap};
+  if(!tap){try{mineGrid.setPointerCapture(e.pointerId)}catch(_){}e.preventDefault()}
+  previewSel();
+});
+mineGrid.addEventListener('pointermove',e=>{
+  if(!drag||drag.tap)return;
+  const el=document.elementFromPoint(e.clientX,e.clientY),c=el&&el.closest?el.closest('#mineGrid .cell'):null;if(!c)return;
+  const d=+c.dataset.d,r=+c.dataset.r;if(d===drag.d1&&r===drag.r1)return;
+  drag.d1=d;drag.r1=r;previewSel();
+});
+mineGrid.addEventListener('pointerup',e=>{
+  if(!drag)return;
+  if(drag.tap){const c=e.target.closest&&e.target.closest('.cell');if(!c||+c.dataset.d!==drag.d0||+c.dataset.r!==drag.r0){drag=null;clearSel();return}}
+  applyDrag();
+});
+mineGrid.addEventListener('pointercancel',()=>{drag=null;clearSel()});
+$('paintToggle').addEventListener('click',()=>{S.paint=!S.paint;$('paintToggle').setAttribute('aria-pressed',S.paint);mineGrid.classList.toggle('painting',S.paint)});
+
+/* minute-precise form */
+function formRange(){
+  const err=$('fErr');err.hidden=true;
+  const k=$('fDate').value,s=toMin($('fStart').value);let e=toMin($('fEnd').value);
+  if(s===null||e===null){err.textContent='시작과 끝 시각을 모두 입력하세요.';err.hidden=false;return null}
+  if(e===0&&s>0)e=1440;
+  if(e<=s){err.textContent='끝 시각이 시작 시각보다 늦어야 해요. 자정을 넘기면 두 날로 나눠 입력하세요.';err.hidden=false;return null}
+  return {k,s,e};
+}
+$('fAdd').addEventListener('click',()=>{if(!S.me)return;const f=formRange();if(!f)return;S.me.avail[f.k]=addR(S.me.avail[f.k],f.s,f.e);edited()});
+$('fSub').addEventListener('click',()=>{if(!S.me)return;const f=formRange();if(!f)return;S.me.avail[f.k]=subR(S.me.avail[f.k],f.s,f.e);if(!S.me.avail[f.k].length)delete S.me.avail[f.k];edited()});
+
+/* heatmap hover / pin */
+const heatGrid=$('heatGrid');
+heatGrid.addEventListener('pointerover',e=>{const c=e.target.closest('.cell');if(!c)return;S.hover={d:+c.dataset.d,r:+c.dataset.r};if(!S.pinned){renderDetail();markCur()}});
+heatGrid.addEventListener('pointerleave',()=>{S.hover=null;if(!S.pinned){renderDetail();markCur()}});
+heatGrid.addEventListener('click',e=>{const c=e.target.closest('.cell');if(!c)return;const t={d:+c.dataset.d,r:+c.dataset.r};
+  S.pinned=(S.pinned&&S.pinned.d===t.d&&S.pinned.r===t.r)?null:t;renderDetail();markCur()});
+
+/* week nav, tabs, misc */
+function goWeek(n){S.week=n===0?mondayOf(addDays(new Date(),1)):addDays(S.week,7*n);renderAll()}
+$('prevWeek').addEventListener('click',()=>goWeek(-1));
+$('nextWeek').addEventListener('click',()=>goWeek(1));
+$('thisWeek').addEventListener('click',()=>goWeek(0));
+function setTab(t){$('layout').dataset.tab=t;$('tabMine').setAttribute('aria-selected',t==='mine');$('tabTeam').setAttribute('aria-selected',t==='team')}
+$('tabMine').addEventListener('click',()=>setTab('mine'));
+$('tabTeam').addEventListener('click',()=>setTab('team'));
+$('minLen').addEventListener('change',e=>{S.minLen=+e.target.value;renderBest()});
+$('copyLink').addEventListener('click',async()=>{
+  const btn=$('copyLink'),url=location.href.split('#')[0];
+  try{await navigator.clipboard.writeText(url);btn.textContent='복사됨'}
+  catch(e){window.prompt('이 링크를 복사해서 팀원에게 보내세요',url);return}
+  setTimeout(()=>btn.textContent='링크 복사',1800);
+});
+$('newMeet').addEventListener('click',()=>{
+  const id=Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-3);
+  const u=new URL(location.href);u.searchParams.set('m',id);u.hash='';location.href=u.toString();
+});
+$('cApply').addEventListener('click',async()=>{
+  const t=Math.max(1,Math.min(50,Math.round(+$('cTeam').value||DEF.teamSize)));
+  const sh=+$('cStart').value,eh=+$('cEnd').value,sl=[10,15,20,30,60].includes(+$('cSlot').value)?+$('cSlot').value:15;
+  const msg=$('cMsg');
+  if(eh<=sh){msg.textContent='끝 시각은 시작 시각보다 늦어야 해요.';return}
+  const next={teamSize:t,startHour:sh,endHour:eh,slot:sl};
+  try{await S.store.saveConfig(next);msg.textContent=S.mode==='local'?'이 브라우저에 저장했어요.':'저장했어요. 모두의 화면에 적용돼요.'}
+  catch(e){msg.textContent='설정을 저장하지 못했어요. Firestore 보안 규칙을 확인하세요.';return}
+  S.config=next;$('settings').open=false;renderSettings();renderAll();
+});
+
+/* ---------- start ---------- */
+function restoreMe(){
+  if(S.me||!S.meId)return;
+  const ex=S.people.get(S.meId),nm=ls(LS('meName'));
+  if(ex){S.me={name:ex.name,avail:clone(ex.avail),touched:false};saveLabel='saved'}
+  else if(nm)S.me={name:nm,avail:{},touched:false};
+  else S.meId=null;
+}
+async function init(){
+  renderSettings();renderAll();
+  const cfg=window.MEETUP_FIREBASE_CONFIG;
+  if(cfg&&cfg.projectId){
+    try{S.store=await firebaseStore(cfg);S.mode='live'}
+    catch(e){S.loadError='Firebase를 불러오지 못했어요. config.js 내용과 인터넷 연결을 확인하세요.';S.store=null;renderAll();return}
+  }else{S.store=localStore();S.mode='local'}
+  let first=true;
+  const failed=e=>{S.loadError=e&&e.code==='permission-denied'
+    ?'응답을 읽을 권한이 없어요. Firebase 콘솔에서 Firestore 보안 규칙(firestore.rules)을 게시했는지 확인하세요.'
+    :'응답을 불러오지 못했어요. 페이지를 새로고침해 주세요.';renderHeader()};
+  S.store.onConfig(d=>{S.config=decodeConfig(d);renderSettings();renderAll()},failed);
+  S.store.onPeople(docs=>{
+    const m=new Map();docs.forEach(d=>{const p=decode(d.id,d.data);if(p)m.set(p.id,p)});
+    S.people=m;S.loadError='';
+    if(first){first=false;restoreMe()}
+    else if(S.me&&S.meId&&m.has(S.meId)&&S.localVer===S.savedVer&&!S.saving){S.me.avail=clone(m.get(S.meId).avail)}
+    renderAll();
+  },failed);
+}
+init();
+</script>
+</body>
+</html>
